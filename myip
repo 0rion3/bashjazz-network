@@ -1,0 +1,38 @@
+#!/bin/bash
+source $SHARED_SCRIPTS_PATH/utils/colors.sh
+
+ifconfig_co() {
+  result=$(curl $1 -s ifconfig.co -H 'Accept: application/json' | jq '[.ip, .city, .country, .asn_org] | join(", ")' | sed  's/"//g')
+  echo -e "  ${Light_Gray}ifcongig.co says --> ${Green}$result${Color_Off}"
+}
+
+ipify_org() {
+  echo -e "  ${Light_Gray}api.ipify.org says --> ${Green}$(curl $1 -s api.ipify.org)${Color_Off}"
+}
+
+ipapi_co() {
+  result=$(curl -s 'https://ipapi.co/json/' | jq '[.ip, .version, .city, .country_name, .org] | join(", ")' | sed  's/"//g')
+  echo -e "  ${Light_Gray}ipapi.co says ---> ${Green}$result${Color_Off}"
+}
+
+case $1 in
+
+  a) # means all
+    ifconfig_co
+    ipify_org
+    ipapi_co
+    ;;
+
+  1)
+    ifconfig_co;;
+
+  2)
+    ipify_org;;
+
+  3)
+    ipapi_co;;
+
+  *)
+    ifconfig_co;;
+
+esac

@@ -1,0 +1,50 @@
+#!/bin/bash
+# Generates new key for wireguard and sets correct persmissions on the dir
+#
+# Must be root to run this
+
+source $SHARED_SCRIPTS_PATH/utils/formatting.sh
+
+if [[ -z $1 ]] || [[ $1 == "-h" ]] || [[ $1 == "--help" ]]; then
+  echo -e "$(cat << EOF
+
+  ${Bold}A more convenient one-step command to generate Wireguard keys in the right way.${Color_Off}
+  Usage:
+
+    wg-gen-key my_vpn_provider
+
+  This will generate two files:
+
+    /etc/wireguard/my_vpn_provider.privatekey
+    /etc/wireguard/my_vpn_provider.publickey
+
+  It will then set correct permissions on all of the files
+  in the /etc/wireguard directory and the directory itself
+  so that only root or privileged users can read it.
+
+  The publickey will be printed into stdout.\n
+EOF
+)"
+exit
+fi
+
+key_name=$1
+cd /etc/wireguard
+echo -e "${Light_Gray}"
+
+if [ -f "/etc/wireguard/${key_name}.privatekey" ] || [ -f "/etc/wireguard/${key_name}.publickey" ]; then
+  echo -e "$(ind 4)${Color_WARN}Public and/or private key files with the name(s)${Color_Off}"
+  echo -e "$(ind 4)/etc/wireguard/${key_name}.(privatekey|publickey)"
+  echo -e "$(ind 4)${Color_WARN}already exist. Not going to overwrite them.${Color_Off}\n"
+  exit 1
+fi
+
+echo -e "$(ind 4)Generating keys..."
+wg genkey | tee "${key_name}.privatekey" | wg pubkey > "${key_name}.publickey"
+
+echo -e "$(ind 4)Setting chmod 600 on all files inside /etc/wireguard and directory itself..."
+chmod 600 /etc/wireguard
+chmod 600 /etc/wireguard/*
+
+echo -e "$(ind 4)Your public key is: ${Color_Off}${Bold}$(cat ${key_name}.publickey)${Color_Off}"
+echo -e "$(ind 4)${Light_Gray}Your private key is here: ${Yellow}/etc/wireguard/${key_name}.privatekey${Color_Off}\n"

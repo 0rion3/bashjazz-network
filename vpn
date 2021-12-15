@@ -1,0 +1,148 @@
+#!/bin/bash
+
+# If you want to make use of ufw killswitch, set $UPDATE_UFW_FOR_WIREGUARD to 1
+# in your environment.
+
+# Must come after the previous check of the $_ variable
+source $SHARED_SCRIPTS_PATH/utils/rootrun.sh
+source $SHARED_SCRIPTS_PATH/utils/formatting.sh
+
+# Dash (-) arguments
+args=()
+while [ $OPTIND -le "$#" ]
+do
+  if getopts :aslc option; then
+    case $option in
+      # ssh username to user when calling `$DOCKER_SCRIPT_DIR/ssh_to_docker connect` below.
+      # Defaults to "docker", but sometimes I need "root", for example.
+      (a) add=1;;
+      (s) off=1;;
+      (l) list_all=1;;
+      (c) show_current=1;;
+    esac
+  else
+    args+=("${!OPTIND}")
+    ((OPTIND++))
+  fi
+done
+
+# Defaults are set it in ~/.bashrc or ~/.shared_shell_env
+conf_file_name="${args[0]:-$DEFAULT_WIREGUARD_COUNTRY}"
+provider="${args[1]:-$DEFAULT_WIREGUARD_PROVIDER}"
+
+conf_file_name=$(echo $conf_file_name | tr '[:lower:]' '[:upper:]' )
+
+echo -e "VPN connection options: "
+echo -e "  ${Light_Gray}Provider:        ${Light_Blue}$provider"
+echo -e "  ${Light_Gray}Config filename: ${Light_Blue}$conf_file_name ${Light_Gray}(usually indicates country)"
+echo -e "${Color_Off}"
+
+if not_root; then
+  password=$($SHARED_SCRIPTS_PATH/utils/request_password);
+  echo "" # Just a an extra newline
+fi
+
+all_conf_files=($(rootrun "find /etc/wireguard/ -name '*.conf' | \
+  grep -oE '[^/]+.\.conf' | sed 's/.conf//'"))
+
+# Show all currennt available Wireguard connections:
+if [[ -n $list_all ]]; then
+  echo -e "$(wrap "All wireguard connections avaible:" 'color gray; ind 4')"
+  echo -e "$(wrap "$(printf "%s\n" "${all_conf_files[@]}")" 'color light_gray' 'ind 6; ind 1 "--> "')\n"
+  exit
+fi
+
+if [[ -n $show_current ]]; then
+  echo "$(rootrun 'wg show')"
+  exit
+fi
+
+echo -e "${Color_Gray}"
+wg_info=$(rootrun 'wg show')
+
+# We don't want to stop the current service if -a (add) flag is present,
+# because in this case we'll just be adding a new one.
+if [[ -z $add ]]; then
+
+  # Stop current Wireguard service first
+  current_wg_service_interface=$(echo -e "$wg_info" | grep interface | sed 's/interface: //')
+  current_wg_service_name=$(echo "$current_wg_service_interface" | grep -o "$provider$conf_file_name")
+  #
+  # First we try the exact match of provider name and conf file name
+  current_wg_service_name=$(echo "$current_wg_service_interface" | grep -o "$provider$conf_file_name")
+  #
+  # If that gives us nothing, we try just the provider name
+  if [[ -z $current_wg_service_name ]]; then
+    current_wg_service_name=$(echo "$current_wg_service_interface" | grep -ohP "$provider[a-zA-Z0-9_-]+\$")
+  fi
+  #
+  # If that also gives us nothing, we try just the conf file name
+  if [[ -z $current_wg_service_name ]]; then
+    current_wg_service_name=$(echo "$current_wg_service_interface" | grep -ohP "[a-zA-Z0-9_-]+$provider\$")
+  fi
+  #
+  # And finally we just settle on the first wireguard interface name we've found
+  if [[ -z $current_wg_service_name ]]; then
+    current_wg_service_name=$(echo "$current_wg_service_interface" | head -n1)
+  fi
+
+  current_wg_service_name=$(echo "$current_wg_service_interface")
+
+  if [[ -n "$current_wg_service_name" ]]; then
+    echo "Stopping wireguard for $current_wg_service_name"
+    rootrun "wg-quick down $current_wg_service_name"
+
+    # REMOVE rules associated with current connection: allow tunnel and ip-address.
+    # This assumes all other in/out connections are blocked, otherwise this would be useless.
+    if [[ -n $UPDATE_UFW_FOR_WIREGUARD ]]; then
+      source $SHARED_SCRIPTS_PATH/network/wg-ufw off $current_wg_service_name
+    fi
+
+    if [[ -n "$DESKTOP_STARTUP_ID" ]]; then
+      test -f $SHARED_SCRIPTS_PATH/gui/wg-connection-notifier &&
+        $SHARED_SCRIPTS_PATH/gui/wg-connection-notifier diconnected
+    fi
+  else
+    echo "No wireguard service was running."
+  fi
+
+fi
+
+if [[ -z $off ]]; then
+
+  fn=$(rootrun "find /etc/wireguard/ -name '*.conf' | \
+    grep -oP '${provider}_?${conf_file_name}'")
+
+  echo "Starting wireguard $fn"
+
+  # ADD rules associated with current connection: allow tunnel and ip-address.
+  # This assumes all other in/out connections are blocked, otherwise this would be useless.
+  if [[ -n $UPDATE_UFW_FOR_WIREGUARD ]]; then
+    source $SHARED_SCRIPTS_PATH/network/wg-ufw on $fn
+  fi
+
+  rootrun "wg-quick up $fn"
+  if [[ -n "$DESKTOP_STARTUP_ID" ]]; then
+    test -f $SHARED_SCRIPTS_PATH/gui/wg-connection-notifier &&
+      $SHARED_SCRIPTS_PATH/gui/wg-connection-notifier connected
+  else
+    myip 1
+  fi
+
+  # And finally, update /etc/resolv.conf
+  # And finally just replace /etc/resolv.conf with DNS records listed in wireguard.conf file.
+  # Those sneaky resolv.conf managers tend to put that shit in there somehow and I have nor patience,
+  # neither time to be looking at why are they doing it.
+  # TODO: fix rootrin so it can use > to output into /etc/resolv.conf
+  # currently says persmission denied.
+  # TODO currenttly only works when 1 server is listed (which shoudl be the case with wireguard anyway
+  # if you don't any DNSleaks).
+  #fn_out="$(rootrun "cat /etc/wireguard/$fn.conf | grep -P 'DNS ?= ?' | grep -oP '[\d.]+'")"
+  #replaced_by_comment="#Replaced by ./vpn script, nameserver from /etc/wireguard/$fn"
+  #nameserver_line="nameserver $dns_server"
+  #rootrun "echo '$replaced_by_comment' >  /etc/resolv.conf"
+  #rootrun "echo '$nameserver_lines'    >> /etc/resolv.conf"
+
+
+fi
+echo -e "${Color_Off}"

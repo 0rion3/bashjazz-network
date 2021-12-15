@@ -1,0 +1,171 @@
+#!/bin/bash
+#
+# This script should either be run as sudo or sourced from another script.
+# It makes use of the pre-defined $password variable containing user password.
+#
+# Password may have been already collected by other scripts sourcing this one.
+
+source $SHARED_SCRIPTS_PATH/utils/formatting.sh
+source $SHARED_SCRIPTS_PATH/network/ufw_helpers.sh
+WG_CONF_PATH=${WG_CONF_PATH:-"/etc/wireguard"}
+hostnames_fn=$WG_CONF_PATH/resolved_hostnames
+
+# Three tasks for now:
+#   1. on         - add rules, reload ufw
+#   2. off        - remove rules, reload ufw
+#   3  killswitch - (on|off), depends on what's in $2
+#   4. hostnames  - parse all $WG_CONF_PATH/*.conf files, extract hostnames, resolve ip addresses
+#                   and write them into $WG_CONF_PATH/resolved_hostnames. For now, has to be run
+#                   manually every time you add a new wireguard conf file.
+task=$1
+
+# Hostname that will be translated to an ip address, which in turn will be used
+# to create/remove rules from ufw. Everything else is taken
+# from the $WG_CONF_PATH/resolved_hostnames file
+if [[ $task == "killswitch" ]]; then
+  killswitch=$2
+else
+  # This will be used to the tunnel through which connections to all other
+  # ip addresses are allowed. Normally, if this script is invoked by the ./vpn
+  # script, then it will use the wireguard .conf filename, the part before the extension.
+  tunnel=$2
+fi
+
+# This is optional, but you'll probably want this in order NOT to block your internal connections
+# to docker bridges and stuff like that. However, we'll use the default one later with `ip route`,
+# so it's only here for when you have a machine with multiple connections to the outside world.
+connection_name=${4:-default}
+
+# Checks if already have the password. If not, let's request it.
+if [[ -z "$password" ]]; then
+  password="$($SHARED_SCRIPTS_PATH/utils/request_password)"
+  echo ""
+fi
+
+# This file is kinda like /etc/hosts, pretty much
+if echo "$password" | sudo -S [ ! -f $hostnames_fn ]; then
+  echo -e "$(ind 4)${Color_WARN}File ${White_Bold}$hostnames_fn${Format_Off}${Color_WARN} not found.${Light_Gray}"
+  echo -e "$(ind 4)You'll need to run this program with ${White}hostnames${Ligt_Gray}"
+  exit 1
+fi
+
+# First, let's see if we have a file with vpn hostnames & their names. We can only
+# add ip addresses to ufw, so we need need to know them upfront. If the file is not there,
+# the script will stop and ask you to run it with the --resolve-and-save-wg-hostnames flag
+# with ufw either disabled or with some network access.
+#
+if [[ $task == "hostnames" ]]; then
+  resolved_hostnames_body=""
+
+  printf "$(wrap "Resolving hostnames from $(color white)$hostnames_fn$(color light_gray) might take some time, please wait" 'color light_gray' 'ind 4')"
+
+  for f in $(rootrun "ls $WG_CONF_PATH | grep '.conf'"); do
+
+    # 1. Get the tunnel name
+    tunnel="$(echo $f | sed 's/.conf//')"
+    # 2. Parse all $WG_CONF_PATH/*.conf files, extract hostnames
+    f="$(rootrun "cat $WG_CONF_PATH/$f")"
+    host=$(echo "$f" | grep "Endpoint = " | sed 's/Endpoint *= *//' | sed -r 's/:[0-9]+$//')
+
+    # 3. Use nslookup to resolve ipaddress
+    ip=$(nslookup $host | tail -n2 | grep "Address: " | tr -d 'Address: ' | xargs)
+
+    # 4. Add new line to $new_hostnames, making sure we don't add the same $ip twice
+    # (hosts may differ, but it doesn't matter). We'll only care about ip addresses
+    # when we'll be adding firewall rules.
+    if [[ ! "$resolved_hostnames" =~ "$ip $tunnel" ]]; then
+      resolved_hostnames="$resolved_hostnames\n$ip $tunnel"
+    fi
+    printf "."
+
+  done
+  #
+  # Remove duplicates from hosts
+  # Since we're completely re-creating the resolved_hostnames file and re-resolving all hostnames,
+  # we can safely delte the old one if it existed.
+  rootrun "sh -c 'echo \"$resolved_hostnames\" > $hostnames_fn'"
+  echo -e "$(wrap "New $hostnames_fn was generated, here's what we got:" 'color light_gray' 'nl 2; ind 4')"
+  # Replace space separated with \t for a pretty printout
+  resolved_hostnames=$(echo "$resolved_hostnames" | sed 's/ /\t/g')
+  echo -e "$(wrap "$resolved_hostnames" 'color light_gray' 'ind 8')\n"
+  exit
+elif [[ "$task" == "on" ]] || [[ "$task" == "off" ]]; then
+  # Read resolved_hostnames file into a multidimensional array.
+  # The format is the same as /etc/hosts, each line is `ip_address hostname`
+  hostnames_contents=$(rootrun "cat $hostnames_fn")
+  readarray -t _hostnames <<< $hostnames_contents
+  declare -A hostnames
+  for line in "${_hostnames[@]}"; do
+    if [[ -n $line ]]; then
+      line=( $line )
+      hostnames["${line[1]}"]="${line[0]}"
+    fi
+  done
+
+  if [[ $task == "on" ]]; then
+    add_ufw_rules "ufw allow in on $tunnel from any to any
+                   ufw allow out on $tunnel from any to any
+                   ufw allow out from any to ${hostnames[$tunnel]}"
+    reload_or_enable_ufw
+  else
+    echo "TODO: removing rules for this particular wireguard server"
+  fi
+fi
+
+# This check comes later, because maybe we'll want to improve the script
+# and use something other than ufw.
+if [[ "$(which ufw)" =~ "not found" ]]; then
+  echo -e "$(ind 4)${Color_WARN}Program ${Blue_Bold}ufw${Format_Off}${Color_WARN} is not intalled.${Light_Gray}"
+  echo -e "$(ind 4)If you're on Debian/Ubuntu try ${White}sudo apt install ufw${Format_Off}"
+  exit 1
+else
+  ufw_status="$(rootrun 'ufw status' | head -n1 | sed 's/Status:\s*//' )"
+fi
+
+if [[ -n $killswitch ]]; then
+  if [[ $killswitch == "on" ]]; then
+
+    echo -e "$(wrap "Adding rules and reloading ufw..." 'ind 4; color light_gray')"
+
+    # 1. Get default connection's device name and ip-range
+    ip_route=($(ip route | grep $connection_name | sed -r 's/(default )?(via )?//'))
+    local_ip_range="${ip_route[0]}"
+    device="${ip_route[2]}"
+    if test "$(echo "$local_ip_range" | grep -P '\d{1,3}$')"; then
+      router_ip=$local_ip_range
+      local_ip_range=$(ip -o -f inet addr show | grep $device | awk '/scope global/ {print $4}')
+    fi
+
+    # 2. Set default DENY policy on everything
+    ufw_deny_rules="ufw default deny outgoing
+                    ufw default deny incoming"
+
+    # 3. Allow rules must include local network
+    ufw_allow_rules="ufw allow to $local_ip_range
+                     ufw allow from $local_ip_range"
+
+    # Add nameservers from /etc/resolv.conf to ALLOW rules
+    ufw_allow_ns_rules="$(cat /etc/resolv.conf | grep 'nameserver' | sed 's/nameserver/ufw allow out from any to/g')"
+
+    add_ufw_rules "$ufw_deny_rules"
+    sleep 3
+    add_ufw_rules "$ufw_allow_rules"
+    add_ufw_rules "$ufw_allow_ns_rules"
+    reload_or_enable_ufw confirm
+
+  elif [[ $killswitch == "off" ]]; then
+    reset_ufw
+  else
+    echo -e "$(ind 4)${Light_Gray} Please provide \"on\" or \"off\" as the last argument${Format_Off}"
+    exit 1
+  fi
+
+elif [[ $ufw_status == "inactive" ]]; then
+  echo -e "$(ind 4)${Blue_Bold}ufw${Light_Gray} is installed, but ${Yellow}is DISABLED${Light_Gray},"
+  echo -e "$(ind 4)so rules will not be updated because it'd be pointless. Enable it with"
+  echo -e "$(ind 8)${White}sudo ufw enable${Light_Gray}."
+  echo -e "$(ind 4)You'd want to add a killswitch too, then all traffic would be blocked, unless"
+  echo -e "$(ind 4)your VPN connection is ON. This can be done automatically with the following command:"
+  echo -e "$(ind 8)${White}wg-ufw killswitch on${Format_Off}"
+  exit 1
+fi

@@ -1,0 +1,88 @@
+#!/bin/bash
+#
+# Starts multiple instances of privoxy Proxy server based on all of the configuration files
+# found in /etc/privoxy. File names should have the '.config' extension. It will not run
+# an instances that uses the main '/etc/privoxy/config' file, so create a symlink to it if you want it.
+
+source $SHARED_SCRIPTS_PATH/utils/formatting.sh
+source $SHARED_SCRIPTS_PATH/utils/rootrun.sh
+PRIVOXY_CONFIG_PATH=${PRIVOXY_CONFIG_PATH:-"/etc/privoxy"}
+
+# Dash (-) arguments
+script_args=()
+while [ $OPTIND -le "$#" ]
+do
+  if getopts :fs option; then
+    case $option in
+      # ssh username to user when calling `$DOCKER_SCRIPT_DIR/ssh_to_docker connect` below.
+      # Defaults to "docker", but sometimes I need "root", for example.
+      (f) force_restart=1;;
+      (s) stop_instances=1;;
+    esac
+  else
+    instance_names+=("${!OPTIND}")
+    ((OPTIND++))
+  fi
+done
+
+# 1. Find all privoxy config files
+config_files=( $(find $PRIVOXY_CONFIG_PATH -maxdepth 1 -name "*.config" -print) )
+
+# 2. Check which ones are already running.
+running=( $(isup privoxy | grep -o "$PRIVOXY_CONFIG_PATH/.*config$") )
+
+# 3a. STARTING INSTANCES
+if [[ -z $stop_instances ]]; then
+
+  if [ ${#config_files[@]} -eq 0 ]; then
+    echo -e "$(wrap "No config files found, nothing to start." 'ind 4; color pink')"
+    echo -e "$(wrap "Config files must reside in $PRIVOXY_CONFIG_PATH
+                     and have a .config extension. This progam will not process $PRIVOXY_CONFIG_PATH/config" \
+                     'ind 4; color light_gray')"
+    exit
+  fi
+
+  for f in ${config_files[@]}; do
+    if [[ " ${instance_names[*]} " == *" $PRIVOXY_CONFIG_PATH/$f "* ]] || [[ -z $instance_names ]]; then
+
+      name=$(echo "$f" | grep -oP '[^/]+$')
+
+      if [[ " ${running[*]} " == *" $f "* ]]; then
+        if [[ -n $force_restart ]]; then
+          echo -e "$(wrap "Forcing $name privoxy instance restart..." 'ind 4; color yellow')"
+          pkill -f $f && privoxy $f
+        else
+          echo -e "$(wrap "Omitting restart of $name instance, already running. Use -f flag to force restart" 'ind 4; color light_gray;')"
+        fi
+      else
+        echo -e "$(wrap "Starting $name privoxy instance..." 'ind 4; color green')"
+        privoxy $f
+      fi
+
+    fi
+  done
+
+# 3b. STOPPING INSTANCES
+else
+  if [ ${#running[@]} -eq 0 ]; then
+    echo -e "$(wrap "No instances are running." 'ind 4; color gray')"
+    exit
+  fi
+  for i in "${running[@]}"; do
+    if [[ " ${running[*]} " == *" $PRIVOXY_CONFIG_PATH/$i "* ]] || [[ -z $instance_names ]]; then
+      echo "$i"
+      name=$(echo "$i" | grep -oP '[^/]+$')
+      echo -e "$(wrap "Stopping $name privoxy instance..." 'ind 4; color pink')"
+      pkill -f $i
+    fi
+  done
+fi
+
+echo -e "$(wrap "DONE." 'ind 4; color white')"
+echo -e "$(wrap "Currently running privoxy instances:" 'ind 4; color gray')"
+running="$(isup privoxy)"
+if [[ -n $running ]]; then
+  echo -e "$(wrap "$running" 'color light_gray' 'ind 8')"
+else
+  echo -e "$(wrap "NONE" 'ind 8; color light_gray')"
+fi

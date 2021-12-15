@@ -1,0 +1,44 @@
+#!/bin/bash
+source $SHARED_SCRIPTS_PATH/utils/formatting.sh
+
+page="$(curl -s https://browserleaks.com/ip)"
+
+host_info="$(echo "$page"      | grep -oP '<table class="wb">.+?</table>')"
+tor_relay_info="$(echo "$page" | grep -oP '<table class="wb nomrg">.+?</table>')"
+
+parse_fields() {
+  echo "$1"                                | \
+    grep -oP "<tr>.*?</tr>"                | \
+    sed -r 's|<tr><td>([^<>]+)</td>|\1: |' | \
+    sed -e :a -e 's/<[^>]*>//g;/</N;//ba'  | \
+    sed -r 's/^.+?: $//g'                  | \
+    sed -r 's/^.*n\/a.*$//g'               | \
+    sed '/^[[:space:]]*$/d'                | \
+    awk '!a[$0]++'
+}
+
+filter() {
+  filter="$1"
+  fields="$2"
+  echo "$fields"
+}
+
+host_info="$(parse_fields "$host_info")"
+tor_relay_info="$(parse_fields "$tor_relay_info")"
+
+filters="$@"
+filters="${filters:-"IP Country Region City ISP Organization Network Connection Nickname AS OR"}"
+if [[ -n "$filters" ]]; then
+  filters="$(echo "$filters" | sed -r 's/ /|/g')"
+  host_info="$(echo "$host_info" | grep -P "$filters")"
+  tor_relay_info="$(echo "$tor_relay_info" | grep -P "$filters")"
+fi
+
+echo -e "$(wrap "Host info:" 'ind 4; color blue; color bold')"
+echo -e "$(wrap "$host_info" 'color light_gray' 'ind 8')"
+
+if [[ -n $tor_relay_info ]]; then
+  echo -e "$(wrap "Tor relay info" 'ind 4; color yellow; color bold')"
+  echo -e "$(wrap "$tor_relay_info" 'color light_gray' 'ind 8')"
+  echo ""
+fi

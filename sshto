@@ -1,0 +1,17 @@
+#!/bin/bash
+
+source ~/.ssh/connection_colors.sh
+host=$1
+
+if [[ -z $ssh_terminal_theme ]]; then
+  ssh_terminal_theme=${TERMINAL_THEMES["$host"]}
+  if [[ -z $ssh_terminal_theme ]]; then
+    ssh_terminal_theme=${TERMINAL_THEMES["$host"]}
+  fi
+fi
+if [[ -z $ssh_terminal_theme ]]; then ssh_terminal_theme="blue"; fi
+
+printf "\033]7;file://%s/\007" "docker-dev-${ssh_terminal_theme}"
+ssh $host
+
+printf "\033]7;file://%s/\007" "default"
