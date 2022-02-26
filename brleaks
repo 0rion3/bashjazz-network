@@ -1,5 +1,5 @@
 #!/bin/bash
-source $SHARED_SCRIPTS_PATH/utils/formatting.sh
+source $BASHJAZZ_PATH/utils/formatting.sh
 
 page="$(curl -s https://browserleaks.com/ip)"
 

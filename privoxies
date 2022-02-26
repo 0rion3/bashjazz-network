@@ -4,8 +4,8 @@
 # found in /etc/privoxy. File names should have the '.config' extension. It will not run
 # an instances that uses the main '/etc/privoxy/config' file, so create a symlink to it if you want it.
 
-source $SHARED_SCRIPTS_PATH/utils/formatting.sh
-source $SHARED_SCRIPTS_PATH/utils/rootrun.sh
+source $BASHJAZZ_PATH/utils/formatting.sh
+source $BASHJAZZ_PATH/utils/rootrun.sh
 PRIVOXY_CONFIG_PATH=${PRIVOXY_CONFIG_PATH:-"/etc/privoxy"}
 
 # Dash (-) arguments

@@ -5,10 +5,31 @@
 #
 # Password may have been already collected by other scripts sourcing this one.
 
-source $SHARED_SCRIPTS_PATH/utils/formatting.sh
-source $SHARED_SCRIPTS_PATH/network/ufw_helpers.sh
+source $BASHJAZZ_PATH/utils/formatting.sh
+source $BASHJAZZ_PATH/network/ufw_helpers.sh
 WG_CONF_PATH=${WG_CONF_PATH:-"/etc/wireguard"}
 hostnames_fn=$WG_CONF_PATH/resolved_hostnames
+
+print_warning_about_ufw_status() {
+  echo -e "$(ind 4)${Blue_Bold}ufw${Light_Gray} is installed, but ${Yellow}is DISABLED${Light_Gray},"
+  echo -e "$(ind 4)so rules will not be updated because it'd be pointless. Enable it with"
+  echo -e "$(ind 8)${White}sudo ufw enable${Light_Gray}."
+  echo -e "$(ind 4)You'd want to add a killswitch too, then all traffic would be blocked, unless"
+  echo -e "$(ind 4)your VPN connection is ON. This can be done automatically with the following command:"
+  echo -e "$(ind 8)${White}wg-ufw killswitch on${Format_Off}"
+}
+
+if [[ "$(which ufw)" =~ "not found" ]]; then
+  echo -e "$(ind 4)${Color_WARN}Program ${Blue_Bold}ufw${Format_Off}${Color_WARN} is not intalled.${Light_Gray}"
+  echo -e "$(ind 4)If you're on Debian/Ubuntu try ${White}sudo apt install ufw${Format_Off}"
+  exit 1
+else
+  ufw_status="$(rootrun 'ufw status' | head -n1 | sed 's/Status:\s*//' )"
+fi
+
+if [[ "$ufw_status" == "inactive" ]]; then
+  print_warning_about_ufw_status
+fi
 
 # Three tasks for now:
 #   1. on         - add rules, reload ufw
@@ -38,7 +59,7 @@ connection_name=${4:-default}
 
 # Checks if already have the password. If not, let's request it.
 if [[ -z "$password" ]]; then
-  password="$($SHARED_SCRIPTS_PATH/utils/request_password)"
+  password="$($BASHJAZZ_PATH/utils/request_password)"
   echo ""
 fi
 
@@ -112,16 +133,6 @@ elif [[ "$task" == "on" ]] || [[ "$task" == "off" ]]; then
   fi
 fi
 
-# This check comes later, because maybe we'll want to improve the script
-# and use something other than ufw.
-if [[ "$(which ufw)" =~ "not found" ]]; then
-  echo -e "$(ind 4)${Color_WARN}Program ${Blue_Bold}ufw${Format_Off}${Color_WARN} is not intalled.${Light_Gray}"
-  echo -e "$(ind 4)If you're on Debian/Ubuntu try ${White}sudo apt install ufw${Format_Off}"
-  exit 1
-else
-  ufw_status="$(rootrun 'ufw status' | head -n1 | sed 's/Status:\s*//' )"
-fi
-
 if [[ -n $killswitch ]]; then
   if [[ $killswitch == "on" ]]; then
 
@@ -160,12 +171,4 @@ if [[ -n $killswitch ]]; then
     exit 1
   fi
 
-elif [[ $ufw_status == "inactive" ]]; then
-  echo -e "$(ind 4)${Blue_Bold}ufw${Light_Gray} is installed, but ${Yellow}is DISABLED${Light_Gray},"
-  echo -e "$(ind 4)so rules will not be updated because it'd be pointless. Enable it with"
-  echo -e "$(ind 8)${White}sudo ufw enable${Light_Gray}."
-  echo -e "$(ind 4)You'd want to add a killswitch too, then all traffic would be blocked, unless"
-  echo -e "$(ind 4)your VPN connection is ON. This can be done automatically with the following command:"
-  echo -e "$(ind 8)${White}wg-ufw killswitch on${Format_Off}"
-  exit 1
 fi

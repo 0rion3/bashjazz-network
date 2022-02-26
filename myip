@@ -1,5 +1,5 @@
 #!/bin/bash
-source $SHARED_SCRIPTS_PATH/utils/colors.sh
+source $BASHJAZZ_PATH/utils/colors.sh
 
 ifconfig_co() {
   result=$(curl $1 -s ifconfig.co -H 'Accept: application/json' | jq '[.ip, .city, .country, .asn_org] | join(", ")' | sed  's/"//g')

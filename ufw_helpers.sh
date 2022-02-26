@@ -1,6 +1,6 @@
 #!/bin/bash
-source $SHARED_SCRIPTS_PATH/utils/formatting.sh
-source $SHARED_SCRIPTS_PATH/utils/rootrun.sh
+source $BASHJAZZ_PATH/utils/formatting.sh
+source $BASHJAZZ_PATH/utils/rootrun.sh
 
 add_ufw_rules() {
   echo -e "$(wrap "$1" 'color gray' 'ind 4')"

@@ -3,7 +3,7 @@
 #
 # Must be root to run this
 
-source $SHARED_SCRIPTS_PATH/utils/formatting.sh
+source $BASHJAZZ_PATH/utils/formatting.sh
 
 if [[ -z $1 ]] || [[ $1 == "-h" ]] || [[ $1 == "--help" ]]; then
   echo -e "$(cat << EOF
