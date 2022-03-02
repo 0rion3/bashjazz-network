@@ -11,7 +11,7 @@ source $BASHJAZZ_PATH/utils/formatting.sh
 args=()
 while [ $OPTIND -le "$#" ]
 do
-  if getopts :aslc option; then
+  if getopts :aslcK option; then
     case $option in
       # ssh username to user when calling `$DOCKER_SCRIPT_DIR/ssh_to_docker connect` below.
       # Defaults to "docker", but sometimes I need "root", for example.
@@ -19,6 +19,9 @@ do
       (s) off=1;;
       (l) list_all=1;;
       (c) show_current=1;;
+      # Won't attempt to use ufw (or other firewalls that might be added)
+      # to enable/disable the killswitch.
+      (K) no_killswitch=1;;
     esac
   else
     args+=("${!OPTIND}")
@@ -92,9 +95,11 @@ if [[ -z $add ]]; then
     echo "Stopping wireguard for $current_wg_service_name"
     rootrun "wg-quick down $current_wg_service_name"
 
-    # REMOVE rules associated with current connection: allow tunnel and ip-address.
-    # This assumes all other in/out connections are blocked, otherwise this would be useless.
-    source $BASHJAZZ_PATH/network/wg-ufw off $current_wg_service_name
+    if [[ -z $no_killswitch ]]; then
+     # REMOVE rules associated with current connection: allow tunnel and ip-address.
+     # This assumes all other in/out connections are blocked, otherwise this would be useless.
+     source $BASHJAZZ_PATH/network/wg-ufw off $current_wg_service_name
+    fi
 
     if [[ -n "$DESKTOP_STARTUP_ID" ]]; then
       test -f $BASHJAZZ_PATH/gui/wg-connection-notifier &&
@@ -115,7 +120,10 @@ if [[ -z $off ]]; then
 
   # ADD rules associated with current connection: allow tunnel and ip-address.
   # This assumes all other in/out connections are blocked, otherwise this would be useless.
-  source $BASHJAZZ_PATH/network/wg-ufw on $fn
+
+  if [[ -z $no_killswitch ]]; then
+    source $BASHJAZZ_PATH/network/wg-ufw on $fn
+  fi
 
   rootrun "wg-quick up $fn"
 
