@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 source $BASHJAZZ_PATH/utils/formatting.sh
 
 page="$(curl -s https://browserleaks.com/ip)"

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Generates new key for wireguard and sets correct persmissions on the dir
 #
 # Must be root to run this

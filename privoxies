@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Starts multiple instances of privoxy Proxy server based on all of the configuration files
 # found in /etc/privoxy. File names should have the '.config' extension. It will not run

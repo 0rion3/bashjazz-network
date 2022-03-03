@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # This script should either be run as sudo or sourced from another script.
 # It makes use of the pre-defined $password variable containing user password.

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 source ~/.ssh/connection_colors.sh
 host=$1

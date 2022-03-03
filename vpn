@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # If you want to make use of ufw killswitch, set $UPDATE_UFW_FOR_WIREGUARD to 1
 # in your environment.
