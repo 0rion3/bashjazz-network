@@ -11,14 +11,14 @@ source $BASHJAZZ_PATH/utils/formatting.sh
 args=()
 while [ $OPTIND -le "$#" ]
 do
-  if getopts :aslcK option; then
+  if getopts :adlsK option; then
     case $option in
       # ssh username to user when calling `$DOCKER_SCRIPT_DIR/ssh_to_docker connect` below.
       # Defaults to "docker", but sometimes I need "root", for example.
       (a) add=1;;
-      (s) off=1;;
+      (d) disconnect=1;;
       (l) list_all=1;;
-      (c) show_current=1;;
+      (s) show_current=1;;
       # Won't attempt to use ufw (or other firewalls that might be added)
       # to enable/disable the killswitch.
       (K) no_killswitch=1;;
@@ -111,7 +111,7 @@ if [[ -z $add ]]; then
 
 fi
 
-if [[ -z $off ]]; then
+if [[ -z $disconnect ]]; then
 
   fn=$(rootrun "find /etc/wireguard/ -name '*.conf' | \
     grep -oP '${provider}_?${conf_file_name}'")
