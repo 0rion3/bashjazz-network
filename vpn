@@ -131,7 +131,7 @@ if [[ -z $disconnect ]]; then
     test -f $BASHJAZZ_PATH/gui/wg-connection-notifier &&
       $BASHJAZZ_PATH/gui/wg-connection-notifier connected
   else
-    myip 1
+    $BASHJAZZ_PATH/network/myip 1
   fi
 
   # And finally, update /etc/resolv.conf
