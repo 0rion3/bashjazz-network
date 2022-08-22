@@ -2,7 +2,7 @@
 
 # TODO: stop proxy with --stop
 
-$BASHJAZZ_PATH/localip $2
+$BASHJAZZ_PATH/network/localip $2
 
 Red='\e[0;31m'   # Error color
 Green='\e[0;32m' # Success color
