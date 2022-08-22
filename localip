@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+Red='\e[0;31m' # Error color
+NoF='\e[0m'    # Clear formatting
+interface="$1"
+
+i=0
+while [ $i -lt 2 ]; do
+  # First, get the name of the first interface that's used (unless provided in $1)
+  if [[ -z "$interface" ]]; then
+    interface="$(ifconfig | grep -oE '^[a-zA-Z0-9]+:' | head -n 1 | sed 's/://')"
+  fi
+  IP_ADDR="$(ifconfig "$interface" | grep -o 'inet [^ ]*' | sed 's/inet //')"
+
+  if [[ -z "$IP_ADDR" ]]; then
+    sleep 1
+    i=$(($i+1))
+  else
+    break
+  fi
+
+done
+
+if [[ -z "$interface" ]]; then
+  >&2 echo -e "${Red}ERROR: unknown network interface ${NoF}${interface}"
+  exit 1
+elif [[ -z "$IP_ADDR" ]]; then
+  >&2 echo -e "  ${Red}ERROR: couldn't get the ip address of this machine on"
+  >&2 echo -e "  ${Nof}       interface ${NoF}$interface${Red} after ${i}s.${Nof}"
+  exit 1
+else
+  echo $IP_ADDR
+fi
