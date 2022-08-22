@@ -58,6 +58,7 @@ fi
 connection_name=${4:-default}
 
 # Checks if already have the password. If not, let's request it.
+if is_root; then password="not needed"; fi
 if [[ -z "$password" ]]; then
   password="$($BASHJAZZ_PATH/utils/request_password)"
   echo ""

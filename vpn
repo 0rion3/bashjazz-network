@@ -48,9 +48,9 @@ fi
 all_conf_files=($(rootrun "find /etc/wireguard/ -name '*.conf' | \
   grep -oE '[^/]+.\.conf' | sed 's/.conf//'"))
 
-# Show all currennt available Wireguard connections:
+# Show all current available Wireguard connections:
 if [[ -n $list_all ]]; then
-  echo -e "$(wrap "All wireguard connections avaible:" 'color gray; ind 4')"
+  echo -e "$(wrap "All wireguard connections available:" 'color gray; ind 4')"
   echo -e "$(wrap "$(printf "%s\n" "${all_conf_files[@]}")" 'color light_gray' 'ind 6; ind 1 "--> "')\n"
   exit
 fi
