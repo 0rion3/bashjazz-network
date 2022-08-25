@@ -33,6 +33,6 @@ case $1 in
     ipapi_co;;
 
   *)
-    ifconfig_co;;
+    ipapi_co;;
 
 esac

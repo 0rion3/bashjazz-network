@@ -11,7 +11,7 @@ NoF='\e[0m'      # Clear formatting
 echo    "  Starting SOCKS5 proxy on port $1 for"
 echo -n "  ip address $IP_ADDR (this machine)..."
 
-ssh -f -N -D $IP_ADDR:${1:-1080} localhost
+ssh -f -N -D $IP_ADDR:${1:-1080} localhost &
 
 if [ $? -gt 0 ]; then
   >&2 echo -e "${Red}Something went wrong, see the error messages above."
