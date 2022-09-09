@@ -1,36 +1,58 @@
 #!/usr/bin/env bash
 source $BASHJAZZ_PATH/utils/colors.sh
 
+ip_regexp="([0-9]+\.)+[0-9]+"
+
+curl_json() {
+  local result="$(curl -s "$1" -i -H 'Accept: application/json')"
+  if [[ -n "$(echo -e "$result" | grep -E '^HTTP.* 200 OK')" ]]; then
+    echo "$result" | grep -E '^[^a-zA-Z]' | xargs |\
+      sed  -E 's/[{}]//g' | sed "s/, /\\n/g" | sed 's/^\s*//g' |\
+      grep -E '^(ip|city|(country_name|country)|languages|(org|asn_org)|asn): .*$' |\
+      sed  -E 's/$/, /g' | xargs | sed -E 's/,$//'
+  else
+    >&2 echo -e "  ${Dim}✗ cannot reach ${1}${NoF}"
+    return 1
+  fi
+}
+
 ifconfig_co() {
-  result=$(curl $1 -s ifconfig.co -H 'Accept: application/json' | jq '[.ip, .city, .country, .asn_org] | join(", ")' | sed  's/"//g')
-  echo -e "  ${Light_Gray}ifcongig.co says --> ${Green}$result${Color_Off}"
+  local result="$(curl_json ifconfig.co)"
+  [[ -z "$result" ]] && return 1
+  echo -e "  ${Light_Gray}ifcongig.co --> ${Green}$result${Color_Off}"
 }
 
 ipify_org() {
-  echo -e "  ${Light_Gray}api.ipify.org says --> ${Green}$(curl $1 -s api.ipify.org)${Color_Off}"
+  local result="$(curl -s api.ipify.org || echo '')"
+  if [[ -z "$result" ]]; then
+    >&2 echo -e "  ${Dim}✗ cannot reach api.ipify.org${NoF}"
+    return 1
+  fi
+  echo -e "  ${Light_Gray}api.ipify.org --> ${Green}$result${Color_Off}"
 }
 
 ipapi_co() {
-  result=$(curl -s 'https://ipapi.co/json/' | jq '[.ip, .version, .city, .country_name, .org] | join(", ")' | sed  's/"//g')
-  echo -e "  ${Light_Gray}ipapi.co says ---> ${Green}$result${Color_Off}"
+  local result="$(curl_json 'https://ipapi.co/json/')"
+  [[ -z "$result" ]] && return 1
+  echo -e "  ${Light_Gray}ipapi.co --> ${Green}$result${Color_Off}"
 }
 
 case $1 in
 
-  a) # means all
-    ifconfig_co
-    ipify_org
+  a|-a|--all)
     ipapi_co
+    ipify_org
+    ifconfig_co
     ;;
 
   1)
-    ifconfig_co;;
+    ipapi_co;;
 
   2)
     ipify_org;;
 
   3)
-    ipapi_co;;
+    ifconfig_co;;
 
   *)
     ipapi_co;;
