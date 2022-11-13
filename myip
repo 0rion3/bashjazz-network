@@ -40,19 +40,19 @@ ipapi_co() {
 case $1 in
 
   a|-a|--all)
-    ipapi_co
-    ipify_org
     ifconfig_co
+    ipify_org
+    ipapi_co
     ;;
 
   1)
-    ipapi_co;;
+    ifconfig_co;;
 
   2)
     ipify_org;;
 
   3)
-    ifconfig_co;;
+    ipapi_co;;
 
   *)
     ipapi_co;;

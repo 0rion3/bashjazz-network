@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+nslookup $host | tail -n2 | grep "Address: " | tr -d 'Address: ' | xargs

@@ -132,8 +132,8 @@ if [[ -z $disconnect ]]; then
       $BASHJAZZ_PATH/gui/wg-connection-notifier connected
   else
     sleep 0.5
-    $BASHJAZZ_PATH/network/myip --all # When no arguments provided, default provider
-                                      # is used.
+    $BASHJAZZ_PATH/network/myip 2
+    $BASHJAZZ_PATH/network/myip 1
   fi
 
   # And finally, update /etc/resolv.conf
