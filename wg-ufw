@@ -90,7 +90,7 @@ if [[ $task == "hostnames" ]]; then
     host=$(echo "$f" | grep "Endpoint = " | sed 's/Endpoint *= *//' | sed -r 's/:[0-9]+$//')
 
     # 3. Use nslookup to resolve ipaddress
-    ip=$(nslookup $host | tail -n2 | grep "Address: " | tr -d 'Address: ' | xargs)
+    ip=$(getip $host | tail -n2 | grep "Address: " | tr -d 'Address: ' | grep -vE '#.*$' | xargs)
 
     # 4. Add new line to $new_hostnames, making sure we don't add the same $ip twice
     # (hosts may differ, but it doesn't matter). We'll only care about ip addresses

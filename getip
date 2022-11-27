@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+
+# Easy args random order parsing. We only have two args:
+#   * An optional flag -e meaning "print extended info"
+#   * HOSTNAME for which we'd like to find an ip-address
+
+# So far no need to use for $BASHJAZZ's cli-args library, too much for
+# one optional flag argument (-e) and a hostname. However, might potentially
+# become a TODO later on.
+
+echo "nslookup \"$1\""
+$(which nslookup) http://$1
+exit $?
+
+Q='`'
+
+if [[ "$@" == "-h" ]] || [[ "$@" == "--help" ]]; then
+
+  echo -e "
+  DESCRIPTION:
+    This program takes a HOSTNAME and determines an ip-address associated
+    with it. Be mindful which DNS server it might use to resolve the query
+    and read the documentation on ${Q}nslookup${Q} or
+    ${Q}ntsbscan${Q} (if you use the -e flag).
+
+  USAGE:
+
+    getip freebsd.org
+        Prints out ip-address for freebsd.org host, it gets from
+        the ${Q}nslookup${Q} command.
+
+    getip -e http://freebsd.org
+    getip https://freebsd.org -e
+        Prints out extended info about freebsd.org's ip address.
+
+    getip -h
+    getip --help
+        Prints this help message.\n"
+    exit 0
+fi
+
+if [[ $1 == "-e" ]]; then
+  HOSTNAME=$2
+  EXTENDED_INFO_FLAG=$1
+else
+  HOSTNAME=$1
+  EXTENDED_INFO_FLAG=$2
+fi
+
+if [[ -z "$HOSTNAME" ]]; then
+    >&2 echo "\n  ERROR:"
+    "  Please provide a HOSTNAME to query ip for. Use -e argument for"
+    "extended information."
+    exit 1
+fi
+
+# ntbscan is a more advance program, which isn't required, unless you use the -e
+# flag, when calling this script. It gives you more information you might potentially
+# find useful.
+if [[ -n $EXTENDED_INFO_FLAG ]]; then
+  if [[ -z "$(which ntsbscan)" ]]; then
+    >&2 echo -e  "\n  ERROR:"
+    "  Please install ${Q}ntbscan${Q} program for to use -e (extended info) flag."
+    exit 1
+  else
+    ntsbscan -v -t -b $HOSTNAME # verbose, timeout, bandwidth
+    exit $?
+  fi
+else
+  echo "nslookup \"$HOSTNAME\""
+  $(which nslookup) "$HOSTNAME"
+  exit $?
+fi
